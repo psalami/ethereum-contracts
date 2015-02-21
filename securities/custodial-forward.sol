@@ -1,29 +1,36 @@
 contract BitcoinPriceOracle {
 
-    //this oracle returns the price (in wei) of the
-    //
+    //this oracle returns the price (in wei) of the asset covered by this oracle (1 BTC)
     function getPrice() returns (uint price) {
         return 2000000000000000000000;
     }
 }
 
-contract CustodialForward {
-    // This contract represents a forward contract that takes custody of collateral form both parties
-    // for the term of the contract. The underlying asset can be anything, including a fractional share
-    // of another asset.
-    // This contract will depend on a trusted oracle (or arbiter) to provide the price of the underlying asset
-    // upon contract expiration. The address of the oracle will be hard-coded into this contract.
+contract CollateralizedNDF {
+    // This contract represents a particular type of forward contract known as a non-deliverable forward (NDF).
+    // In an NDF, the difference between the contracted price and the prevailing market price of the underlying
+    // at the time of contract expiration (in this case as provided by a trusted oracle)
+    // is settled in cash (in this case Ether, represented in wei).
+    //
+    // Upon entering into the contract, the contract takes custody of collateral form both parties
+    // for the term of the contract. The collateral is used to settle the balance of the parties' accounts upon
+    // contract expiration. The underlying asset can be anything, including a fractional share
+    // of a non-crypto asset, so long as there exists an oracle which is trusted by both parties to the contract and which
+    // is capable of reporting the price of the underlying upon contract offering and settlement.
+    //
+    // The address of the trusted oracle will be hard-coded into this contract as submitted to the blockchain.
     // Both parties are expected to inspect the source code before entering into the contract
     // and thereby certify their trust in the oracle.
     // Upon expiration of the contract, the oracle is queried for the price of the underlying
-    // asset, and a settlement amount is computed by the contract. The contract is settled in cash (ether)
+    // asset, and a settlement amount is computed by the contract.
+    // The contract is settled in cash (Ether, delivered to the addresses of the parties to the contract).
     //
-    // A forward contract is similar to a futures contract that can be
-    // customized to suit the needs of the parties. This file is intended as a template upon which to
-    // build more customized contracts.
+    // A forward contract is similar to a futures contract that can be customized to suit the needs of the parties.
+    // This file is intended as a template upon which to build more customized contracts (i.e. forwards with
+    // more customized terms or CFDs).
 
     uint expirationDate;
-    unit openDate;
+    uint openDate;
     uint8 marginPercent;
 
 
@@ -33,36 +40,39 @@ contract CustodialForward {
     address owner;
     address seller;
     uint sellerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    unit buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    address underlyingPriceOracleAddress; //leave blank for now
-    string underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
-    string underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
-    string underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
-    string underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
+    uint buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
+    address underlyingPriceOracleAddress; //leave blank for now (oracle is defined here and has static output)
+    string32 underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
+    string32 underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
+    uint underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
+    uint underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
 
-    unit amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
-    contract underlyingPriceOracle;
-    uint purchasePrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
+    uint amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
+    BitcoinPriceOracle underlyingPriceOracle;
+    uint contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
 
     uint buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
     uint sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
     bool isAvailable; //contract is not available for purchase until offered with sufficient margin by a seller
     bool isSettled; //set to true after the contract has been fully settled
+
     /**
      * Creates a new forward contract. Requires customization of the number of units
-     * that this contract represents and the expiration date. We could require that
-     * those params should be hard-coded instead, or we could allow more parameters to
-     * be configured here.
+     * that this contract represents, the expiration date and the contracted price. We could require that
+     * those params should be hard-coded in the constructor instead, or we could allow more parameters to
+     * be configurable as constructor arguments.
      *
      * @constructor
      */
-    function CustodialForward(uint amount, uint expirationDate){
+    function CustodialForward(uint creationAmount, uint expirationDate, uint creationContractedPrice){
         creator = msg.sender;
-        this.amount = amount;
+        amount = creationAmount;
+        contractedPrice = creationContractedPrice;
         openDate = block.timestamp;
 
-        //pre-defined values
+        //pre-defined values; note that these values should be modified prior to contract submission to the blockchain
+        //to suit the needs of the parties to the trade
         underlyingPriceOracle = BitcoinPriceOracle(underlyingPriceOracleAddress);
         underlyingAssetDescription = "bitcoin";
         underlyingAssetUnitDescription = "1/1000 of 1";
@@ -76,7 +86,7 @@ contract CustodialForward {
      * Make this contract available for purchase; collateral from the seller is required.
      * We could require that this method should be called by the constructor.
      */
-    function offer() returns (string success) {
+    function offer() returns (string32 success) {
         if(msg.value < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
@@ -87,7 +97,7 @@ contract CustodialForward {
         seller = msg.sender;
         sellerBalance = msg.value;
         isAvailable = true;
-        return "contract offered successfully with collateral";
+        return "contract offered successfully";
     }
 
     /**
@@ -95,11 +105,11 @@ contract CustodialForward {
      * The caller must send sufficient ether with this method call to cover the required margin that must
      * be posted for this contract.
      */
-    function buy() returns (string success) {
+    function buy() returns (string32 success) {
         if(!available()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "contract has not been offered for sale yet or has already been settled";
+            return "contract has not yet been offered for sale or has already been sold or settled";
         }
         if(msg.value < computeMarginAmount()){
             //return funds to sender
@@ -119,7 +129,7 @@ contract CustodialForward {
      * in order to settle the contract. The contract will compute the settlement amount and return the
      * balance of the collateral plus settlement to the respective parties.
      */
-    function close() returns (string success) {
+    function close() returns (string32 success) {
         if(available()){
             //if the contract is still on the market (or has already been settled), we cannot settle it
             return "contract has not been offered yet or has already been settled; cannot close";
@@ -151,7 +161,7 @@ contract CustodialForward {
     }
 
     function computeSettlementAmount() private returns (uint amount) {
-        uint contractPrice = purchasePrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
+        uint contractPrice = contractedPrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
         uint currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
         return currentContractValue - contractPrice;
 
@@ -169,16 +179,8 @@ contract CustodialForward {
      * by the number of units that this contract represents.
      *
      */
-    function computeMarginAmount() private returns (unit margin) {
+    function computeMarginAmount() returns (uint margin) {
         return underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount * marginPercent / 100;
     }
-
-
-
-
-
-
-
-
 
 }
