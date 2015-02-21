@@ -22,8 +22,8 @@ contract CustodialForward {
     // customized to suit the needs of the parties. This file is intended as a template upon which to
     // build more customized contracts.
 
-    unit64 expirationDate;
-    unit64 openDate;
+    uint expirationDate;
+    unit openDate;
     uint8 marginPercent;
 
 
@@ -42,9 +42,13 @@ contract CustodialForward {
 
     unit amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
     contract underlyingPriceOracle = BitcoinPriceOracle(underlyingPriceOracleAddress);
+    uint purchasePrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
+
+    uint buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
+    uint sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
     bool isAvailable = false; //contract is not available for purchase until offered with sufficient margin by a seller
-
+    bool isSettled = false; //set to true after the contract has been fully settled
     /**
      * Creates a new forward contract. Requires customization of the number of units
      * that this contract represents and the expiration date. We could require that
@@ -53,7 +57,7 @@ contract CustodialForward {
      *
      * @constructor
      */
-    function CustodialForward(uint amount, uint64 expirationDate){
+    function CustodialForward(uint amount, uint expirationDate){
         creator = msg.sender;
         this.amount = amount;
         openDate = block.timestamp;
@@ -72,16 +76,21 @@ contract CustodialForward {
         //if the margin is sufficient, assign ownership to the sender who will become the seller
         owner = msg.sender;
         seller = msg.sender;
+        sellerBalance = msg.value;
         isAvailable = true;
         return "contract offered successfully with collateral";
-
     }
 
+    /**
+     * This method can be called by any who wishes to take the opposite side of the seller.
+     * The caller must send sufficient ether with this method call to cover the required margin that must
+     * be posted for this contract.
+     */
     function buy() returns (string success) {
-        if(!isAvailable){
+        if(!available()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "contract has not been offered for sale yet";
+            return "contract has not been offered for sale yet or has already been settled";
         }
         if(msg.value < computeMarginAmount()){
             //return funds to sender
@@ -89,9 +98,11 @@ contract CustodialForward {
             return "insufficient margin posted";
         }
         //if the margin is sufficient, the buyer becomes the new contract holder and the contract is taken off the
-        //market by setting its availability
+        //market by setting its availability to false
         owner = msg.sender;
+        buyerBalance = msg.value;
         isAvailable = false;
+        openDate = block.timestamp;
     }
 
     /**
@@ -100,11 +111,46 @@ contract CustodialForward {
      * balance of the collateral plus settlement to the respective parties.
      */
     function close() returns (string success) {
+        if(available()){
+            //if the contract is still on the market (or has already been settled), we cannot settle it
+            return "contract has not been offered yet or has already been settled; cannot close";
+        }
+        if(block.timestamp < expirationDate){
+            return "contract cannot be closed before expiration";
+        }
+
+        //adjust the balance of the buyer and seller based on the price of the underlying asset upon contract expiration
+        uint settlementAmount = computeSettlementAmount();
+        uint buyerBalance = buyerBalance  + settlementAmount;
+        uint sellerBalance = sellerBalance - settlementAmount;
+
+        //capture amount of deficiencies if margins were insufficient
+        if(buyerBalance < 0){
+            buyerDefaultAmount = buyerBalance * -1;
+            buyerBalance = 0;
+        }
+        if(sellerBalance < 0){
+            sellerDefaultAmount = sellerBalance * -1;
+            sellerBalance = 0;
+        }
+
+        //send the amounts owed to the respective parties to settle the contract
+        owner.send(buyerBalance);
+        seller.send(sellerBalance);
+
+
+    }
+
+    function computeSettlementAmount() private returns (uint amount) {
+        uint contractPrice = purchasePrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
+        uint currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
+        return currentContractValue - contractPrice;
+
 
     }
 
     function available() returns (bool isAvailable){
-        return isAvailable;
+        return isAvailable && !isSettled;
     }
 
     /**
