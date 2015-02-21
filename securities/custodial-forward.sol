@@ -34,21 +34,21 @@ contract CustodialForward {
     address seller;
     uint sellerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
     unit buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    address underlyingPriceOracleAddress = "";
-    string underlyingAssetDescription = "bitcoin"; //the underlying (whole) asset (i.e. BTC)
-    string underlyingAssetUnitDescription = "1/1000 of 1"; //describes how a unit of this contract is derived from the underlying
-    string underlyingAssetFraction = 1000; //used to compute a unit of this contract as a fraction of the underlying
-    string underlyingAssetMultiple = 1; //used to compute a unit of this contract as a multiple of the underlying
+    address underlyingPriceOracleAddress; //leave blank for now
+    string underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
+    string underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
+    string underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
+    string underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
 
     unit amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
-    contract underlyingPriceOracle = BitcoinPriceOracle(underlyingPriceOracleAddress);
+    contract underlyingPriceOracle;
     uint purchasePrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
 
     uint buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
     uint sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
-    bool isAvailable = false; //contract is not available for purchase until offered with sufficient margin by a seller
-    bool isSettled = false; //set to true after the contract has been fully settled
+    bool isAvailable; //contract is not available for purchase until offered with sufficient margin by a seller
+    bool isSettled; //set to true after the contract has been fully settled
     /**
      * Creates a new forward contract. Requires customization of the number of units
      * that this contract represents and the expiration date. We could require that
@@ -61,6 +61,15 @@ contract CustodialForward {
         creator = msg.sender;
         this.amount = amount;
         openDate = block.timestamp;
+
+        //pre-defined values
+        underlyingPriceOracle = BitcoinPriceOracle(underlyingPriceOracleAddress);
+        underlyingAssetDescription = "bitcoin";
+        underlyingAssetUnitDescription = "1/1000 of 1";
+        underlyingAssetFraction = 1000;
+        underlyingAssetMultiple = 1;
+        isAvailable = false;
+        isSettled = false;
     }
 
     /**
