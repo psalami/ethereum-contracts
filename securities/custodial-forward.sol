@@ -1,7 +1,7 @@
 contract BitcoinPriceOracle {
 
     //this oracle returns the price (in wei) of the asset covered by this oracle (1 BTC)
-    function getPrice() returns (uint price) {
+    function getPrice() returns (int price) {
         return 2000000000000000000000;
     }
 }
@@ -31,7 +31,7 @@ contract CollateralizedNDF {
 
     uint expirationDate;
     uint openDate;
-    uint8 marginPercent;
+    int8 marginPercent;
 
 
     address creator;
@@ -44,15 +44,15 @@ contract CollateralizedNDF {
     address underlyingPriceOracleAddress; //leave blank for now (oracle is defined here and has static output)
     string32 underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
     string32 underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
-    uint underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
-    uint underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
+    int underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
+    int underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
 
-    uint amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
+    int amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
     BitcoinPriceOracle underlyingPriceOracle;
-    uint contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
+    int contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
 
-    uint buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
-    uint sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
+    int buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
+    int sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
     bool isAvailable; //contract is not available for purchase until offered with sufficient margin by a seller
     bool isSettled; //set to true after the contract has been fully settled
@@ -65,7 +65,7 @@ contract CollateralizedNDF {
      *
      * @constructor
      */
-    function CustodialForward(uint creationAmount, uint expirationDate, uint creationContractedPrice){
+    function CustodialForward(int creationAmount, uint expirationDate, int creationContractedPrice){
         creator = msg.sender;
         amount = creationAmount;
         contractedPrice = creationContractedPrice;
@@ -87,7 +87,7 @@ contract CollateralizedNDF {
      * We could require that this method should be called by the constructor.
      */
     function offer() returns (string32 success) {
-        if(msg.value < computeMarginAmount()){
+        if(int(msg.value) < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
             return "insufficient margin posted";
@@ -105,19 +105,20 @@ contract CollateralizedNDF {
      * The caller must send sufficient ether with this method call to cover the required margin that must
      * be posted for this contract.
      */
-    function buy() returns (string32 success) {
+    function buy() returns (string32) {
         if(!available()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "contract has not yet been offered for sale or has already been sold or settled";
+            return "contract not available";
         }
-        if(msg.value < computeMarginAmount()){
+        if(int(msg.value) < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
             return "insufficient margin posted";
         }
         //if the margin is sufficient, the buyer becomes the new contract holder and the contract is taken off the
         //market by setting its availability to false
+
         owner = msg.sender;
         buyerBalance = msg.value;
         isAvailable = false;
@@ -132,37 +133,47 @@ contract CollateralizedNDF {
     function close() returns (string32 success) {
         if(available()){
             //if the contract is still on the market (or has already been settled), we cannot settle it
-            return "contract has not been offered yet or has already been settled; cannot close";
+            return "contract not available";
         }
         if(block.timestamp < expirationDate){
-            return "contract cannot be closed before expiration";
+            return "cannot close before expiration";
         }
 
         //adjust the balance of the buyer and seller based on the price of the underlying asset upon contract expiration
-        uint settlementAmount = computeSettlementAmount();
-        uint buyerBalance = buyerBalance  + settlementAmount;
-        uint sellerBalance = sellerBalance - settlementAmount;
+        int settlementAmount = computeSettlementAmount();
+        int buyerBalance = buyerBalance  + settlementAmount;
+        int sellerBalance = sellerBalance - settlementAmount;
+
+        uint buyerBalanceUnsigned;
+        uint sellerBalanceUnsigned;
 
         //capture amount of deficiencies if margins were insufficient
         if(buyerBalance < 0){
             buyerDefaultAmount = buyerBalance * -1;
             buyerBalance = 0;
+            buyerBalanceUnsigned = 0;
+        } else {
+            buyerBalanceUnsigned = uint(buyerBalance);
         }
+
         if(sellerBalance < 0){
             sellerDefaultAmount = sellerBalance * -1;
             sellerBalance = 0;
+            sellerBalanceUnsigned = 0;
+        } else {
+            sellerBalanceUnsigned = uint(sellerBalance);
         }
 
         //send the amounts owed to the respective parties to settle the contract
-        owner.send(buyerBalance);
-        seller.send(sellerBalance);
+        owner.send(buyerBalanceUnsigned);
+        seller.send(sellerBalanceUnsigned);
 
 
     }
 
-    function computeSettlementAmount() private returns (uint amount) {
-        uint contractPrice = contractedPrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
-        uint currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
+    function computeSettlementAmount() private returns (int) {
+        int contractPrice = contractedPrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
+        int currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
         return currentContractValue - contractPrice;
 
 
@@ -179,7 +190,7 @@ contract CollateralizedNDF {
      * by the number of units that this contract represents.
      *
      */
-    function computeMarginAmount() returns (uint margin) {
+    function computeMarginAmount() returns (int margin) {
         return underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount * marginPercent / 100;
     }
 
