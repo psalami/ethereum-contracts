@@ -6,7 +6,7 @@ contract BitcoinPriceOracle {
     }
 }
 
-contract CollateralizedNDF {
+contract CustodialForward {
     // This contract represents a particular type of forward contract known as a non-deliverable forward (NDF).
     // In an NDF, the difference between the contracted price and the prevailing market price of the underlying
     // at the time of contract expiration (in this case as provided by a trusted oracle)
@@ -65,7 +65,11 @@ contract CollateralizedNDF {
      *
      * @constructor
      */
+<<<<<<< HEAD
     function CustodialForward(int creationAmount, uint expirationDate, int creationContractedPrice){
+=======
+    function CollateralizedNDF(uint creationAmount, uint expirationDate, uint creationContractedPrice){
+>>>>>>> c48e44627e6e314e97132e595a5e0980ab0057b9
         creator = msg.sender;
         amount = creationAmount;
         contractedPrice = creationContractedPrice;
