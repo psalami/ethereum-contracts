@@ -65,11 +65,7 @@ contract CustodialForward {
      *
      * @constructor
      */
-<<<<<<< HEAD
     function CustodialForward(int creationAmount, uint expirationDate, int creationContractedPrice){
-=======
-    function CollateralizedNDF(uint creationAmount, uint expirationDate, uint creationContractedPrice){
->>>>>>> c48e44627e6e314e97132e595a5e0980ab0057b9
         creator = msg.sender;
         amount = creationAmount;
         contractedPrice = creationContractedPrice;
