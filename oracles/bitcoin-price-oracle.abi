@@ -1,0 +1,1 @@
+[{"constant":false,"inputs":[],"name":"getPrice","outputs":[{"name":"price","type":"int256"}],"type":"function"}]

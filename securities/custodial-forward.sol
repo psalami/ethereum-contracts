@@ -1,9 +1,7 @@
 contract BitcoinPriceOracle {
 
     //this oracle returns the price (in wei) of the asset covered by this oracle (1 BTC)
-    function getPrice() returns (int price) {
-        return 2000000000000000000000;
-    }
+    function getPrice() returns (int price) {}
 }
 
 contract CustodialForward {
@@ -29,33 +27,35 @@ contract CustodialForward {
     // This file is intended as a template upon which to build more customized contracts (i.e. forwards with
     // more customized terms or CFDs).
 
-    uint expirationDate;
-    uint openDate;
-    int8 marginPercent;
+    uint public expirationDate;
+    uint public openDate;
+    int8 public marginPercent = 1;
 
 
-    address creator;
+    address public creator;
     //the user who currently owns the contract (the seller before the contract is sold, the buyer after it is sold)
     //we should revisit the concept of owner to see if it makes sense
-    address owner;
-    address seller;
-    uint sellerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    uint buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    address underlyingPriceOracleAddress; //leave blank for now (oracle is defined here and has static output)
-    string32 underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
-    string32 underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
-    int underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
-    int underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
+    address public owner;
+    address public seller;
+    uint public sellerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
+    uint public buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
+    address public underlyingPriceOracleAddress; //leave blank for now (oracle is defined here and has static output)
+    string32 public underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
+    string32 public underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
+    int public underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
+    int public underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
 
-    int amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
-    BitcoinPriceOracle underlyingPriceOracle;
-    int contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
+    int public amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
+    BitcoinPriceOracle public underlyingPriceOracle;
+    int public contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
 
-    int buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
-    int sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
+    int public buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
+    int public sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
-    bool isAvailable; //contract is not available for purchase until offered with sufficient margin by a seller
-    bool isSettled; //set to true after the contract has been fully settled
+    bool public isAvailable = false; //contract is not available for purchase until offered with sufficient margin by a seller
+    bool public isSettled = false; //set to true after the contract has been fully settled
+    bool public parametersSet = false;
+
 
     /**
      * Creates a new forward contract. Requires customization of the number of units
@@ -65,21 +65,36 @@ contract CustodialForward {
      *
      * @constructor
      */
-    function CustodialForward(int creationAmount, uint expirationDate, int creationContractedPrice){
+    function CustodialForward(){
         creator = msg.sender;
-        amount = creationAmount;
-        contractedPrice = creationContractedPrice;
         openDate = block.timestamp;
-
-        //pre-defined values; note that these values should be modified prior to contract submission to the blockchain
-        //to suit the needs of the parties to the trade
-        underlyingPriceOracle = BitcoinPriceOracle(underlyingPriceOracleAddress);
-        underlyingAssetDescription = "bitcoin";
-        underlyingAssetUnitDescription = "1/1000 of 1";
-        underlyingAssetFraction = 1000;
-        underlyingAssetMultiple = 1;
         isAvailable = false;
         isSettled = false;
+    }
+
+    function setParameters(int creationAmount, uint creationExpirationDate, int creationContractedPrice, address oracle, string32 description, string32 unit, int fraction, int multiple) returns (string32) {
+        //pre-defined values; note that these values should be modified prior to contract submission to the blockchain
+        //to suit the needs of the parties to the trade
+        /*if(msg.sender != creator){
+            return "you are not the creator!";
+        }*/
+
+        creator = msg.sender;
+        openDate = block.timestamp;
+
+        if(creationExpirationDate <= block.timestamp){
+            return "expiration must be in the future";
+        }
+
+        amount = creationAmount;
+        expirationDate = creationExpirationDate;
+        contractedPrice = creationContractedPrice;
+        underlyingPriceOracle = BitcoinPriceOracle(oracle);
+        underlyingAssetDescription = description;
+        underlyingAssetUnitDescription = unit;
+        underlyingAssetFraction = fraction;
+        underlyingAssetMultiple = multiple;
+        parametersSet = true;
     }
 
     /**
@@ -87,6 +102,9 @@ contract CustodialForward {
      * We could require that this method should be called by the constructor.
      */
     function offer() returns (string32 success) {
+        if(!parametersSet){
+            return "parameters not set";
+        }
         if(int(msg.value) < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
@@ -141,7 +159,7 @@ contract CustodialForward {
 
         //adjust the balance of the buyer and seller based on the price of the underlying asset upon contract expiration
         int settlementAmount = computeSettlementAmount();
-        int buyerBalance = buyerBalance  + settlementAmount;
+        int buyerBalance = buyerBalance + settlementAmount;
         int sellerBalance = sellerBalance - settlementAmount;
 
         uint buyerBalanceUnsigned;
@@ -171,15 +189,14 @@ contract CustodialForward {
 
     }
 
-    function computeSettlementAmount() private returns (int) {
+    function computeSettlementAmount() private returns (int)
+    {
         int contractPrice = contractedPrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
         int currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
         return currentContractValue - contractPrice;
-
-
     }
 
-    function available() returns (bool isAvailable){
+    function available() returns (bool){
         return isAvailable && !isSettled;
     }
 
@@ -193,5 +210,38 @@ contract CustodialForward {
     function computeMarginAmount() returns (int margin) {
         return underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount * marginPercent / 100;
     }
+
+    /* accessors */
+
+    function getIsAvailable() returns(int) {
+        if(isAvailable){
+            return 1;
+        }else{
+            return 0;
+        }
+    }
+
+    function getIsSettled() returns(int) {
+        if(isSettled){
+            return 1;
+        }else{
+            return 0;
+        }
+    }
+
+    function getParametersSet() returns(int) {
+        if(parametersSet){
+            return 1;
+        }else{
+            return 0;
+        }
+    }
+
+
+    function getUnderlyingPrice() returns(int) {
+        return underlyingPriceOracle.getPrice();
+    }
+
+
 
 }
