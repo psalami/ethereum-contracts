@@ -1,0 +1,30 @@
+{
+  "name": "ethereum-oracle-feeders",
+  "version": "0.0.1",
+  "description": "node.js utility to feed a price into an oracle ethereum contract",
+  "main": "price-feeder.js",
+  "dependencies": {
+    "ethereum.js": "git://github.com/ethereum/ethereum.js#develop",
+    "request": "^2.53.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/psalami/ethereum-contracts.git"
+  },
+  "keywords": [
+    "ethereum",
+    "smart-contracts",
+    "utilities",
+    "oracles"
+  ],
+  "author": "Patrick Salami",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/psalami/ethereum-contracts/issues"
+  },
+  "homepage": "https://github.com/psalami/ethereum-contracts"
+}
