@@ -3,7 +3,7 @@
 This repository contains Ethereum contracts that may be used as part of dapps or on their own.
 
 ## Getting started
-See http://github.com/psalami/eth-utils for a node.js-based command line utility to easily deploy and call Ethereum contracts.
+See http://github.com/psalami/ethereum-utils for a node.js-based command line utility to easily deploy and call Ethereum contracts.
 
 ## Finance
 
