@@ -1,7 +1,7 @@
-contract BitcoinPriceOracle {
+contract PriceOracle {
 
     //this oracle returns the price (in wei) of the asset covered by this oracle (1 BTC)
-    function getPrice() returns (int price) {}
+    function getPrice() returns (int128 price) {}
 }
 
 contract CustodialForward {
@@ -29,7 +29,7 @@ contract CustodialForward {
 
     uint public expirationDate;
     uint public openDate;
-    int public marginPercent;
+    int32 public marginPercent;
 
 
     address public creator;
@@ -39,25 +39,22 @@ contract CustodialForward {
     address public seller;
     uint public sellerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
     uint public buyerBalance; //the margin posted by seller + settlement amount (added after close); user may post more than minimum margin
-    address public underlyingPriceOracleAddress; //leave blank for now (oracle is defined here and has static output)
     string32 public underlyingAssetDescription; //the underlying (whole) asset (i.e. BTC)
-    string32 public underlyingAssetUnitDescription; //describes how a unit of this contract is derived from the underlying
-    int public underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
-    int public underlyingAssetMultiple; //used to compute a unit of this contract as a multiple of the underlying
+    int32 public underlyingAssetFraction; //used to compute a unit of this contract as a fraction of the underlying
 
-    int public amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
-    BitcoinPriceOracle public underlyingPriceOracle;
+    int32 public amount; // the number of units that this contract represents (i.e. 100 units of 1/1000 BTC)
+    PriceOracle public underlyingPriceOracle;
     int public contractedPrice; //the price (in wei) at which the buyer of the contract agrees to purchase one unit upon contract expiration
+    int128 public settlementPrice;
 
-    int public buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
-    int public sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
+    //int public buyerDefaultAmount; //amount (in wei) by which the buyer's margin balance is deficient of the settlement amount
+    //int public sellerDefaultAmount; //amount (in wei) by which the seller's margin balance is deficient of the settlement amount
 
-    bool public isAvailable = false; //contract is not available for purchase until offered with sufficient margin by a seller
-    bool public isSettled = false; //set to true after the contract has been fully settled
-    bool public parametersSet = false;
+    bool public isAvailable; //contract is not available for purchase until offered with sufficient margin by a seller
+    bool public isSettled; //set to true after the contract has been fully settled
 
 
-    /**
+    /*
      * Creates a new forward contract. Requires customization of the number of units
      * that this contract represents, the expiration date and the contracted price. We could require that
      * those params should be hard-coded in the constructor instead, or we could allow more parameters to
@@ -70,44 +67,50 @@ contract CustodialForward {
         openDate = block.timestamp;
         isAvailable = false;
         isSettled = false;
+        amount = 0;
     }
 
-    function setParameters(int creationAmount, uint creationExpirationDate, int creationContractedPrice, address oracle, string32 description, string32 unit, int fraction, int multiple, int margin) returns (string32) {
-        //pre-defined values; note that these values should be modified prior to contract submission to the blockchain
-        //to suit the needs of the parties to the trade
-        /*if(msg.sender != creator){
-            return "you are not the creator!";
-        }*/
 
-        creator = msg.sender;
-        openDate = block.timestamp;
+    function setPrimaryParams(int32 creationAmount, uint creationExpirationDate, int creationContractedPrice, string32 description, int32 fraction, int32 margin, address oracleAddr){
+        amount = creationAmount;
+        expirationDate = creationExpirationDate;
+        contractedPrice = creationContractedPrice;
+        underlyingAssetDescription = description;
+        underlyingAssetFraction = fraction;
+        marginPercent = margin;
+        underlyingPriceOracle = PriceOracle(oracleAddr);
+    }
+/*
+    function setParameters(int creationAmount, uint creationExpirationDate, int creationContractedPrice, address oracleAddr, string32 description, int32 fraction, int32 margin) {
+        if(msg.sender != creator){
+            return;
+            //return "you are not the creator!";
+        }
 
         if(creationExpirationDate <= block.timestamp){
-            return "expiration must be in the future";
+            return;
+            //return "expiration must be in the future";
         }
 
         amount = creationAmount;
         expirationDate = creationExpirationDate;
         contractedPrice = creationContractedPrice;
-        underlyingPriceOracle = BitcoinPriceOracle(oracle);
+        underlyingPriceOracle = PriceOracle(oracleAddr);
         underlyingAssetDescription = description;
-        underlyingAssetUnitDescription = unit;
         underlyingAssetFraction = fraction;
-        underlyingAssetMultiple = multiple;
         marginPercent = margin;
-        parametersSet = true;
     }
-
-    function setAmount(int a) {
+*/
+    function setAmount(int32 a) {
         amount = a;
     }
 
-    /**
+    /*
      * Make this contract available for purchase; collateral from the seller is required.
      * We could require that this method should be called by the constructor.
      */
     function offer() returns (string32 success) {
-        if(!parametersSet){
+        if(amount == 0){
             return "parameters not set";
         }
         if(int(msg.value) < computeMarginAmount()){
@@ -120,10 +123,10 @@ contract CustodialForward {
         seller = msg.sender;
         sellerBalance = msg.value;
         isAvailable = true;
-        return "contract offered successfully";
+        return "offered successfully";
     }
 
-    /**
+    /*
      * This method can be called by any who wishes to take the opposite side of the seller.
      * The caller must send sufficient ether with this method call to cover the required margin that must
      * be posted for this contract.
@@ -148,30 +151,34 @@ contract CustodialForward {
         openDate = block.timestamp;
     }
 
-    /**
+    /*
      * Either current owner (buyer) or seller can call this method at or after the expiration date
      * in order to settle the contract. The contract will compute the settlement amount and return the
      * balance of the collateral plus settlement to the respective parties.
      */
-    function close() returns (string32 success) {
+    function close() {
         if(available()){
             //if the contract is still on the market (or has already been settled), we cannot settle it
-            return "contract not available";
+            return;
         }
         if(block.timestamp < expirationDate){
-            return "cannot close before expiration";
+            return;
         }
 
         //adjust the balance of the buyer and seller based on the price of the underlying asset upon contract expiration
-        int settlementAmount = computeSettlementAmount();
-        int buyerBalance = buyerBalance + settlementAmount;
-        int sellerBalance = sellerBalance - settlementAmount;
+        int settlementDelta = computeSettlementAmount();
+        settlementPrice = underlyingPriceOracle.getPrice();
+        buyerBalance = uint(int(buyerBalance) + settlementDelta);
+        sellerBalance = uint(int(sellerBalance) - settlementDelta);
 
-        uint buyerBalanceUnsigned;
-        uint sellerBalanceUnsigned;
+        owner.send(buyerBalance);
+        seller.send(sellerBalance);
+        isSettled = true;
+        //uint buyerBalanceUnsigned;
+        //uint sellerBalanceUnsigned;
 
         //capture amount of deficiencies if margins were insufficient
-        if(buyerBalance < 0){
+        /*if(buyerBalance < 0){
             buyerDefaultAmount = buyerBalance * -1;
             buyerBalance = 0;
             buyerBalanceUnsigned = 0;
@@ -190,14 +197,20 @@ contract CustodialForward {
         //send the amounts owed to the respective parties to settle the contract
         owner.send(buyerBalanceUnsigned);
         seller.send(sellerBalanceUnsigned);
-
+        */
 
     }
 
-    function computeSettlementAmount() private returns (int)
+    function computeSettlementAmount() public returns (int)
     {
-        int contractPrice = contractedPrice / underlyingAssetFraction * underlyingAssetMultiple * amount;
-        int currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount;
+        int contractPrice = contractedPrice / underlyingAssetFraction * amount;
+        int currentContractValue;
+        if(isSettled){
+            currentContractValue = settlementPrice / underlyingAssetFraction * amount;
+        }else{
+            currentContractValue = underlyingPriceOracle.getPrice() / underlyingAssetFraction * amount;
+        }
+
         return currentContractValue - contractPrice;
     }
 
@@ -205,20 +218,7 @@ contract CustodialForward {
         return isAvailable && !isSettled;
     }
 
-    /**
-     * Computes the amount of margin that each party is required to post to enter into this contract.
-     * The margin amount is a pre-defined percentage as derived from the current price of the underlying
-     * (per the mutually agreed-upon oracle), to the price of a single unit of the contract and multiplying
-     * by the number of units that this contract represents.
-     *
-     */
-    function computeMarginAmount() returns (int margin) {
-        return underlyingPriceOracle.getPrice() / underlyingAssetFraction * underlyingAssetMultiple * amount * marginPercent / 100;
-    }
-
-    /* accessors */
-
-    function getIsAvailable() returns(int) {
+    function getIsAvailable() returns (int32){
         if(isAvailable){
             return 1;
         }else{
@@ -226,7 +226,7 @@ contract CustodialForward {
         }
     }
 
-    function getIsSettled() returns(int) {
+    function getIsSettled() returns (int32){
         if(isSettled){
             return 1;
         }else{
@@ -234,19 +234,19 @@ contract CustodialForward {
         }
     }
 
-    function getParametersSet() returns(int) {
-        if(parametersSet){
-            return 1;
-        }else{
-            return 0;
-        }
+    /*
+     * Computes the amount of margin that each party is required to post to enter into this contract.
+     * The margin amount is a pre-defined percentage as derived from the current price of the underlying
+     * (per the mutually agreed-upon oracle), to the price of a single unit of the contract and multiplying
+     * by the number of units that this contract represents.
+     *
+     */
+    function computeMarginAmount() returns (int margin) {
+        return underlyingPriceOracle.getPrice() / underlyingAssetFraction * amount * marginPercent / 100;
     }
 
-
-    function getUnderlyingPrice() returns(int) {
+    function getUnderlyingPrice() returns(int128) {
         return underlyingPriceOracle.getPrice();
     }
-
-
 
 }

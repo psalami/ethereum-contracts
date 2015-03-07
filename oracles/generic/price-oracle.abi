@@ -1,1 +1,1 @@
-[{"constant":false,"inputs":[],"name":"getCreator","outputs":[{"name":"","type":"address"}],"type":"function"},{"constant":false,"inputs":[],"name":"getPrice","outputs":[{"name":"","type":"int256"}],"type":"function"},{"constant":false,"inputs":[{"name":"newPrice","type":"int256"}],"name":"setPrice","outputs":[],"type":"function"}]
+[{"constant":false,"inputs":[],"name":"getPrice","outputs":[{"name":"","type":"int128"}],"type":"function"},{"constant":false,"inputs":[{"name":"newPrice","type":"int128"}],"name":"setPrice","outputs":[],"type":"function"}]

@@ -7,7 +7,7 @@ var fs = require('fs');
 
 
 var RANDOM_MIN = 10;
-var RANDOM_MAX = 15;
+var RANDOM_MAX = 12;
 var USD_IN_ETHER = 10;
 
 var args = process.argv.slice(2);
@@ -67,9 +67,10 @@ var feedOracle = function(){
     console.log("---");
     console.log("previous oracle price: " + oracle.call().getPrice());
     console.log("setting oracle price to " + price);
-    oracle.setPrice(price);
+    oracle.sendTransaction({gas:30000}).setPrice(price);
 
 }
+feedOracle();
 web3.eth.filter('chain').watch(function(res){
     feedOracle();
 });

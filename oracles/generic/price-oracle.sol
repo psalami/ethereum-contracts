@@ -1,26 +1,23 @@
 contract PriceOracle {
 
     address creator;
-    int price;
+    int128 price;
 
     function PriceOracle(){
         creator = msg.sender;
     }
 
-    function setPrice(int newPrice) {
-        if(msg.sender != creator){
+    function setPrice(int128 newPrice) {
+        /*if(msg.sender != creator){
             return;
-        }
+        }*/
 
         price = newPrice;
     }
 
     //this oracle returns the price (in wei) of the asset covered by this oracle
-    function getPrice() returns (int) {
+    function getPrice() returns (int128) {
         return price;
     }
 
-    function getCreator() returns(address){
-        return creator;
-    }
 }
