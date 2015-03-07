@@ -98,6 +98,10 @@ contract CustodialForward {
         parametersSet = true;
     }
 
+    function setAmount(int a) {
+        amount = a;
+    }
+
     /**
      * Make this contract available for purchase; collateral from the seller is required.
      * We could require that this method should be called by the constructor.
