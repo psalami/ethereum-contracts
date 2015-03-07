@@ -29,7 +29,7 @@ contract CustodialForward {
 
     uint public expirationDate;
     uint public openDate;
-    int8 public marginPercent = 1;
+    int public marginPercent = 1;
 
 
     address public creator;
