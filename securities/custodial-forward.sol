@@ -29,7 +29,7 @@ contract CustodialForward {
 
     uint public expirationDate;
     uint public openDate;
-    int public marginPercent = 1;
+    int public marginPercent;
 
 
     address public creator;
@@ -72,7 +72,7 @@ contract CustodialForward {
         isSettled = false;
     }
 
-    function setParameters(int creationAmount, uint creationExpirationDate, int creationContractedPrice, address oracle, string32 description, string32 unit, int fraction, int multiple) returns (string32) {
+    function setParameters(int creationAmount, uint creationExpirationDate, int creationContractedPrice, address oracle, string32 description, string32 unit, int fraction, int multiple, int margin) returns (string32) {
         //pre-defined values; note that these values should be modified prior to contract submission to the blockchain
         //to suit the needs of the parties to the trade
         /*if(msg.sender != creator){
@@ -94,6 +94,7 @@ contract CustodialForward {
         underlyingAssetUnitDescription = unit;
         underlyingAssetFraction = fraction;
         underlyingAssetMultiple = multiple;
+        marginPercent = margin;
         parametersSet = true;
     }
 
