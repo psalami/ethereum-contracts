@@ -8,9 +8,9 @@ contract PriceOracle {
     }
 
     function setPrice(int128 newPrice) {
-        /*if(msg.sender != creator){
+        if(msg.sender != creator){
             return;
-        }*/
+        }
 
         price = newPrice;
     }
