@@ -30,7 +30,7 @@ if(feed == "help"){
     process.exit(0);
 }
 
-web3.setProvider(new web3.providers.HttpSyncProvider('http://127.0.0.1:8080'));
+web3.setProvider(new web3.providers.HttpSyncProvider('http://127.0.0.1:8082'));
 
 //first, check to make sure that there is actually a contract at the specified address
 var result = web3.eth.getData(address);
@@ -67,7 +67,7 @@ var feedOracle = function(){
     console.log("---");
     console.log("previous oracle price: " + oracle.call().getPrice());
     console.log("setting oracle price to " + price);
-    oracle.sendTransaction({gas:30000}).setPrice(price);
+    oracle.sendTransaction({gas:50000}).setPrice(price);
 
 }
 feedOracle();

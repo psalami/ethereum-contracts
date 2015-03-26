@@ -70,7 +70,6 @@ contract CustodialForward {
         amount = 0;
     }
 
-
     function setPrimaryParams(int32 creationAmount, uint creationExpirationDate, int creationContractedPrice, string32 description, int32 fraction, int32 margin, address oracleAddr){
         amount = creationAmount;
         expirationDate = creationExpirationDate;
@@ -109,21 +108,23 @@ contract CustodialForward {
      * Make this contract available for purchase; collateral from the seller is required.
      * We could require that this method should be called by the constructor.
      */
-    function offer() returns (string32 success) {
+    function offer()  {
         if(amount == 0){
-            return "parameters not set";
+            return;
+            //return "parameters not set";
         }
         if(int(msg.value) < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "insufficient margin posted";
+            return;
+            //return "insufficient margin posted";
         }
         //if the margin is sufficient, assign ownership to the sender who will become the seller
         owner = msg.sender;
         seller = msg.sender;
         sellerBalance = msg.value;
         isAvailable = true;
-        return "offered successfully";
+        //return "offered successfully";
     }
 
     /*
@@ -131,16 +132,18 @@ contract CustodialForward {
      * The caller must send sufficient ether with this method call to cover the required margin that must
      * be posted for this contract.
      */
-    function buy() returns (string32) {
+    function buy() {
         if(!available()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "contract not available";
+            return;
+            //return "contract not available";
         }
         if(int(msg.value) < computeMarginAmount()){
             //return funds to sender
             msg.sender.send(msg.value);
-            return "insufficient margin posted";
+            return;
+            //return "insufficient margin posted";
         }
         //if the margin is sufficient, the buyer becomes the new contract holder and the contract is taken off the
         //market by setting its availability to false
